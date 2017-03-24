@@ -8,3 +8,4 @@
   * $source test2/bin/activate
 * Step 5: open Jupyter notebook  in the virual invironemnet $
   * $source jupyter notebook
+* step 6: Follow the assigments in machine_learning.ipynb
