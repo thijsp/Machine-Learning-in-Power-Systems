@@ -1,4 +1,5 @@
-# Machine-Learning-in-Power-Systems
+# Exercise Session: Machine Learning in Power Systems
+## Smart Distribution Systems (B-KUL-H00P3A)
 
 * Step 1: Make sure you are working in Linux
 * Step 2: Navigate to electa/users/reulensf
