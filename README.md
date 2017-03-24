@@ -7,7 +7,7 @@
 * Step 4: Activate the virtual invironment
   *  $source test2/bin/activate
 * St ep 5: Open Jupyter notebook  in the virual invironenment
-  * $source jupyter notebook
+  * $jupyter notebook
 * step 6: Follow the assignments in machine_learning.ipynb
 
 
