@@ -6,18 +6,17 @@ from lxml import etree
 import matplotlib.pyplot as plt
 import datetime as dt
 import urllib.request
-import urllib
 import os.path
-from tools import timeit
 from bs4 import BeautifulSoup
 
 
 class DataFetcher:
 
-    def __init__(self, cache_path='cache.hdf5', verbose=True, only_cached=False):
+    def __init__(self, cache_path='cache.hdf5', verbose=False, only_cached=False):
         self._cache_path = cache_path
-        self._only_cached = False
+        self._only_cached = only_cached
         self._verbose = verbose
+        self.download_cache_if_missing(cache_path)
         store = pd.HDFStore(self._cache_path)
         if '/urls' not in store.keys():
             store['urls'] = pd.DataFrame(columns=['url'])
@@ -26,8 +25,7 @@ class DataFetcher:
     def download_cache_if_missing(self, cache_path):
         cache_url = 'https://kuleuven.box.com/shared/static/a52oz2boohn5ch1a18tau2tp6ee5cvtb.hdf5'
         if not os.path.isfile(cache_path):
-            testfile = urllib.URLopener()
-            testfile.retrieve(cache_url, cache_path)
+            testfile = urllib.request.urlretrieve(cache_url, cache_path)
 
 
     def get_url(self, url, try_cache=True):
@@ -41,7 +39,8 @@ class DataFetcher:
             # save in store
             self.store_cache(url, df)
         elif self._verbose:
-            print('loaded from cache:\t '+url)
+            #print('loaded from cache:\t '+url)
+            pass
         return df
 
     @abstractmethod
@@ -142,7 +141,7 @@ class ElexysBelpexFetcher(DataFetcher):
         return self.parse_page_str(data_str)
 
     def parse_page_str(self, str):
-        soup = BeautifulSoup(str)
+        soup = BeautifulSoup(str, 'lxml')
         table = soup.find(id='contentPlaceHolder_belpexFilterGrid')
         # skip first 4 and last row
         ts = []
@@ -257,16 +256,16 @@ if __name__ == '__main__':
     test = ElexysBelpexFetcher()
     #test.save_stored_page_to_cache('elexys_all_until_2018_03_16.html')
     df = test.fetch()
+    etlf_fetcher = EliaTotalLoadForecastFetcher()
+    load = etlf_fetcher.fetch()
+    #es_fetcher = EliaSolarFetcher()
+    #solar = es_fetcher.fetch()
     while True:
         try:
             ew_fetcher = EliaWindFetcher()
             wind = ew_fetcher.fetch()
         except Exception as e:
             pass
-    #etlf_fetcher = EliaTotalLoadForecastFetcher()
-    #load = etlf_fetcher.fetch()
-    #es_fetcher = EliaSolarFetcher()
-    #solar = es_fetcher.fetch()
     #plt.plot(solar.index, np.logical_not(np.isnan(solar.values)))
     #plt.legend(solar.columns)
     print('completed')
