@@ -87,7 +87,7 @@ class EliaTotalLoadForecastFetcher(DataFetcher):
         for i in range(years.size):
             year = years[i]
             url = load_forecast_y.format(str(years[i]))
-            try_cache = not now_year == year
+            try_cache = (not now_year == year) or self._only_cached
             df = self.get_url(url, try_cache=try_cache)
             dfs.append(df)
         return pd.concat(dfs)
@@ -156,7 +156,6 @@ class ElexysBelpexFetcher(DataFetcher):
         return df
 
 
-
 class EliaAPIFetcher(DataFetcher):
 
     @property
@@ -170,7 +169,7 @@ class EliaAPIFetcher(DataFetcher):
         t_start_fetch = dt.datetime(year=t_year, month=t_month, day=1)
         while t_start_fetch <= t_end:
             now = dt.datetime.now()-dt.timedelta(days=1)
-            try_cache = not (now.month == t_month and now.year == t_year)
+            try_cache = not (now.month == t_month and now.year == t_year) or self._only_cached
             if t_month is 12:
                 t_month = 1
                 t_year += 1
@@ -255,17 +254,13 @@ class EliaWindFetcher(EliaAPIFetcher):
 if __name__ == '__main__':
     test = ElexysBelpexFetcher()
     #test.save_stored_page_to_cache('elexys_all_until_2018_03_16.html')
-    df = test.fetch()
+    price = test.fetch()
     etlf_fetcher = EliaTotalLoadForecastFetcher()
     load = etlf_fetcher.fetch()
-    #es_fetcher = EliaSolarFetcher()
-    #solar = es_fetcher.fetch()
-    while True:
-        try:
-            ew_fetcher = EliaWindFetcher()
-            wind = ew_fetcher.fetch()
-        except Exception as e:
-            pass
+    es_fetcher = EliaSolarFetcher()
+    solar = es_fetcher.fetch()
+    ew_fetcher = EliaWindFetcher(verbose=True)
+    wind = ew_fetcher.fetch()
     #plt.plot(solar.index, np.logical_not(np.isnan(solar.values)))
     #plt.legend(solar.columns)
     print('completed')
