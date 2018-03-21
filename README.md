@@ -23,5 +23,6 @@
 * http://www.elia.be/en/grid-data/power-generation/wind-power
 * https://www.belpex.be/
 
-https://mybinder.org/v2/gh/thijsp/Machine-Learning-in-Power-Systems/master
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/thijsp/Machine-Learning-in-Power-Systems/master)
+
 
