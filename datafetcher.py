@@ -8,6 +8,7 @@ import datetime as dt
 import urllib.request
 import os.path
 from bs4 import BeautifulSoup
+import seaborn as sns
 
 
 class DataFetcher:
@@ -124,7 +125,8 @@ class ElexysBelpexFetcher(DataFetcher):
     def append_cache(self, df):
         df_old = self.search_cache(self.url)
         if df_old is not None:
-            df = pd.concat([df, df_old]).drop_duplicates()
+            df = pd.concat([df, df_old])
+            df = df[~df.index.duplicated('first')]
         self.store_cache(self.url, df)
         return df
 
@@ -142,11 +144,11 @@ class ElexysBelpexFetcher(DataFetcher):
 
     def parse_page_str(self, str):
         soup = BeautifulSoup(str, 'lxml')
-        table = soup.find(id='contentPlaceHolder_belpexFilterGrid')
+        rows = soup.find_all('tr', class_='dxgvDataRow_Office2010Blue')
         # skip first 4 and last row
         ts = []
         vals = []
-        for row in table.find_all('tr')[4:-1]:
+        for row in rows:
             cells = row.find_all('td')
             timestamp = dt.datetime.strptime(cells[0].text, '%d/%m/%Y %H:%M:%S')
             val = float(cells[1].text[2:].replace('.', '').replace(',', '.'))
@@ -252,15 +254,30 @@ class EliaWindFetcher(EliaAPIFetcher):
         return ts, cols
 
 if __name__ == '__main__':
+    while True:
+        try:
+            ew_fetcher = EliaWindFetcher(verbose=True, only_cached=False)
+            wind = ew_fetcher.fetch()
+            print('test')
+        except Exception as e:
+            pass
     test = ElexysBelpexFetcher()
     #test.save_stored_page_to_cache('elexys_all_until_2018_03_16.html')
+    #test.save_stored_page_to_cache('price_all.html')
     price = test.fetch()
+    price_index_all = pd.DatetimeIndex(start=price.index[-1], end=price.index[0], freq='1H')
+    all = pd.DataFrame(index=price_index_all)
+    all['hue'] = 'all'
+    price['hue'] = 'price'
+    pdc = pd.concat([all, price])
+    pdc['val'] = 1
+    pdc['x'] = pdc.index.year
+    sns.boxplot(data=pdc, x='x', y='val', hue='hue')
+    plt.show()
     etlf_fetcher = EliaTotalLoadForecastFetcher()
     load = etlf_fetcher.fetch()
     es_fetcher = EliaSolarFetcher()
     solar = es_fetcher.fetch()
-    ew_fetcher = EliaWindFetcher(verbose=True)
-    wind = ew_fetcher.fetch()
     #plt.plot(solar.index, np.logical_not(np.isnan(solar.values)))
     #plt.legend(solar.columns)
     print('completed')
