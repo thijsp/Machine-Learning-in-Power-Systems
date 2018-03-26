@@ -8,7 +8,7 @@ import datetime as dt
 import urllib.request
 import os.path
 from bs4 import BeautifulSoup
-import seaborn as sns
+#import seaborn as sns
 
 
 class DataFetcher:
