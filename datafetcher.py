@@ -8,7 +8,6 @@ import datetime as dt
 import urllib.request
 import urllib
 import os.path
-from tools import timeit
 from bs4 import BeautifulSoup
 import seaborn as sns
 
@@ -19,6 +18,7 @@ class DataFetcher:
         self._cache_path = cache_path
         self._only_cached = only_cached
         self._verbose = verbose
+        self.download_cache_if_missing(cache_path)
         store = pd.HDFStore(self._cache_path)
         if '/urls' not in store.keys():
             store['urls'] = pd.DataFrame(columns=['url'])
@@ -27,8 +27,8 @@ class DataFetcher:
     def download_cache_if_missing(self, cache_path):
         cache_url = 'https://kuleuven.box.com/shared/static/a52oz2boohn5ch1a18tau2tp6ee5cvtb.hdf5'
         if not os.path.isfile(cache_path):
-            testfile = urllib.URLopener()
-            testfile.retrieve(cache_url, cache_path)
+            print('Downloading initial cache, this might take a while')
+            testfile = urllib.request.urlretrieve(cache_url, cache_path)
 
     def is_cached(self, url):
         return self.search_cache(url) is not None
@@ -268,7 +268,7 @@ def missing_points(df):
 
 
 if __name__ == '__main__':
-    only_cached = True
+    only_cached = False
     price_fetcher = ElexysBelpexFetcher(only_cached=only_cached)
     #price_fetcher.save_stored_page_to_cache('price_all.html')
     price = price_fetcher.fetch()
