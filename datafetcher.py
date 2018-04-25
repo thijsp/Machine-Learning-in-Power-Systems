@@ -268,7 +268,7 @@ def missing_points(df):
 
 
 if __name__ == '__main__':
-    only_cached = False
+    only_cached = True
     price_fetcher = ElexysBelpexFetcher(only_cached=only_cached)
     #price_fetcher.save_stored_page_to_cache('price_all.html')
     price = price_fetcher.fetch()
