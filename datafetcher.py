@@ -6,18 +6,19 @@ from lxml import etree
 import matplotlib.pyplot as plt
 import datetime as dt
 import urllib.request
+import urllib
 import os.path
+from tools import timeit
 from bs4 import BeautifulSoup
-#import seaborn as sns
+import seaborn as sns
 
 
 class DataFetcher:
 
-    def __init__(self, cache_path='cache.hdf5', verbose=False, only_cached=False):
+    def __init__(self, cache_path='cache.hdf5', verbose=True, only_cached=False):
         self._cache_path = cache_path
         self._only_cached = only_cached
         self._verbose = verbose
-        self.download_cache_if_missing(cache_path)
         store = pd.HDFStore(self._cache_path)
         if '/urls' not in store.keys():
             store['urls'] = pd.DataFrame(columns=['url'])
@@ -26,13 +27,18 @@ class DataFetcher:
     def download_cache_if_missing(self, cache_path):
         cache_url = 'https://kuleuven.box.com/shared/static/a52oz2boohn5ch1a18tau2tp6ee5cvtb.hdf5'
         if not os.path.isfile(cache_path):
-            testfile = urllib.request.urlretrieve(cache_url, cache_path)
+            testfile = urllib.URLopener()
+            testfile.retrieve(cache_url, cache_path)
 
+    def is_cached(self, url):
+        return self.search_cache(url) is not None
 
-    def get_url(self, url, try_cache=True):
+    def get_url(self, url, try_cache=True, final_date=None):
         df = None
         if try_cache:
             df = self.search_cache(url)
+            if final_date is not None and df is not None and df.index[-1] < final_date:
+                df = None
         if df is None and not self._only_cached:
             if self._verbose:
                 print('fetching url:\t\t '+url)
@@ -40,8 +46,7 @@ class DataFetcher:
             # save in store
             self.store_cache(url, df)
         elif self._verbose:
-            #print('loaded from cache:\t '+url)
-            pass
+            print('loaded from cache:\t '+url)
         return df
 
     @abstractmethod
@@ -88,10 +93,10 @@ class EliaTotalLoadForecastFetcher(DataFetcher):
         for i in range(years.size):
             year = years[i]
             url = load_forecast_y.format(str(years[i]))
-            try_cache = (not now_year == year) or self._only_cached
-            df = self.get_url(url, try_cache=try_cache)
+            try_cache = not now_year == year
+            df = self.get_url(url, try_cache=try_cache, final_date=dt.datetime(year=year+1, month=1, day=1)-dt.timedelta(minutes=15))
             dfs.append(df)
-        return pd.concat(dfs)
+        return pd.concat(dfs).sort_index()
 
     def fetch_url(self, url):
         df_in = pd.read_csv(url)
@@ -120,13 +125,14 @@ class ElexysBelpexFetcher(DataFetcher):
         df = self.fetch_url(self.url)
         # add cached values if present, and save again
         df = self.append_cache(df)
-        return df
+        return df.sort_index()
 
     def append_cache(self, df):
         df_old = self.search_cache(self.url)
         if df_old is not None:
             df = pd.concat([df, df_old])
-            df = df[~df.index.duplicated('first')]
+            df = pd.concat([df, df_old]).sort_index()
+            df = df[~df.index.duplicated()]
         self.store_cache(self.url, df)
         return df
 
@@ -144,11 +150,11 @@ class ElexysBelpexFetcher(DataFetcher):
 
     def parse_page_str(self, str):
         soup = BeautifulSoup(str, 'lxml')
-        rows = soup.find_all('tr', class_='dxgvDataRow_Office2010Blue')
+        table = soup.find(id='contentPlaceHolder_belpexFilterGrid')
         # skip first 4 and last row
         ts = []
         vals = []
-        for row in rows:
+        for row in table.find_all('tr')[4:-1]:
             cells = row.find_all('td')
             timestamp = dt.datetime.strptime(cells[0].text, '%d/%m/%Y %H:%M:%S')
             val = float(cells[1].text[2:].replace('.', '').replace(',', '.'))
@@ -171,7 +177,7 @@ class EliaAPIFetcher(DataFetcher):
         t_start_fetch = dt.datetime(year=t_year, month=t_month, day=1)
         while t_start_fetch <= t_end:
             now = dt.datetime.now()-dt.timedelta(days=1)
-            try_cache = not (now.month == t_month and now.year == t_year) or self._only_cached
+            try_cache = not (now.month == t_month and now.year == t_year) # edit here
             if t_month is 12:
                 t_month = 1
                 t_year += 1
@@ -180,12 +186,12 @@ class EliaAPIFetcher(DataFetcher):
             t_end_fetch = dt.datetime(year=t_year, month=t_month, day=1)
             url_start_end = self.api_url
             url = url_start_end.format(dt.datetime.strftime(t_start_fetch, '%Y-%m-%d'), dt.datetime.strftime(t_end_fetch, '%Y-%m-%d'))
-            dfs.append(self.get_url(url, try_cache=try_cache))
+            dfs.append(self.get_url(url, try_cache=try_cache, final_date=t_end_fetch-dt.timedelta(hours=3)))
             t_start_fetch = dt.datetime(year=t_year, month=t_month, day=1)
         df_out = pd.concat(dfs)
         # replace all -50 values with NaN, -50 is used to indicate that no value is available
         df_out = df_out.replace(-50, np.nan)
-        return df_out
+        return df_out.sort_index()
 
     def parse_root(self, root, NSP):
         pass
@@ -253,31 +259,30 @@ class EliaWindFetcher(EliaAPIFetcher):
                 cols[key].append(value)
         return ts, cols
 
+
+def missing_points(df):
+    freq = np.min(df.index[1:] - df.index[:-1])
+    full_indices = pd.date_range(start=df.index[0], end=df.index[-1], freq=freq)
+    missing = ~np.isin(full_indices, df.index)
+    return full_indices, missing
+
+
 if __name__ == '__main__':
-    while True:
-        try:
-            ew_fetcher = EliaWindFetcher(verbose=True, only_cached=False)
-            wind = ew_fetcher.fetch()
-            print('test')
-        except Exception as e:
-            pass
-    test = ElexysBelpexFetcher()
-    #test.save_stored_page_to_cache('elexys_all_until_2018_03_16.html')
-    #test.save_stored_page_to_cache('price_all.html')
-    price = test.fetch()
-    price_index_all = pd.DatetimeIndex(start=price.index[-1], end=price.index[0], freq='1H')
-    all = pd.DataFrame(index=price_index_all)
-    all['hue'] = 'all'
-    price['hue'] = 'price'
-    pdc = pd.concat([all, price])
-    pdc['val'] = 1
-    pdc['x'] = pdc.index.year
-    sns.boxplot(data=pdc, x='x', y='val', hue='hue')
+    only_cached = True
+    price_fetcher = ElexysBelpexFetcher(only_cached=only_cached)
+    #price_fetcher.save_stored_page_to_cache('price_all.html')
+    price = price_fetcher.fetch()
+    wind = EliaWindFetcher(only_cached=only_cached).fetch()
+    solar = EliaSolarFetcher(only_cached=only_cached).fetch()
+    load = EliaTotalLoadForecastFetcher(only_cached=only_cached).fetch()
+    plt.figure()
+    sets = dict(price=price, wind=wind, solar=solar, load=load)
+    for i, label in enumerate(sets.keys()):
+        plt.subplot(4, 1, i+1)
+        t, missing = missing_points(sets[label])
+        df = pd.DataFrame(index=t, data=dict(missing=missing))
+        df['year'] = df.index.year
+        df = df.groupby('year').aggregate(dict(missing='sum', year='first'))
+        sns.barplot(data=df, x='year', y='missing')
+        plt.title(label)
     plt.show()
-    etlf_fetcher = EliaTotalLoadForecastFetcher()
-    load = etlf_fetcher.fetch()
-    es_fetcher = EliaSolarFetcher()
-    solar = es_fetcher.fetch()
-    #plt.plot(solar.index, np.logical_not(np.isnan(solar.values)))
-    #plt.legend(solar.columns)
-    print('completed')
