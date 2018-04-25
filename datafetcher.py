@@ -9,12 +9,12 @@ import urllib.request
 import urllib
 import os.path
 from bs4 import BeautifulSoup
-import seaborn as sns
+# import seaborn as sns
 
 
 class DataFetcher:
 
-    def __init__(self, cache_path='cache.hdf5', verbose=True, only_cached=False):
+    def __init__(self, cache_path='cache.hdf5', verbose=False, only_cached=False):
         self._cache_path = cache_path
         self._only_cached = only_cached
         self._verbose = verbose
